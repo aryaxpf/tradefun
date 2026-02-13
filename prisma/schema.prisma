@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+  MODERATOR
+}
+
+enum RoomStatus {
+  CREATED
+  AGREEMENT_PENDING
+  FUNDING_PENDING
+  SECURED
+  IN_PROGRESS
+  DISPUTE
+  COMPLETED
+  CANCELLED
+}
+
+enum FeePayer {
+  BUYER
+  SELLER
+  SPLIT
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  SYSTEM_ALERT
+  ASSET_DELIVERY
+}
+
+enum DisputeStatus {
+  OPEN
+  INVESTIGATING
+  RESOLVED
+}
+
+enum KycStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+model User {
+  id                      String   @id @default(uuid())
+  email                   String   @unique
+  password_hash           String
+  display_name            String
+  unique_tag              String   @unique
+  role                    Role     @default(USER)
+  is_verified             Boolean  @default(false)
+  created_at              DateTime @default(now())
+  successful_transactions Int      @default(0)
+
+  // Relations
+  transaction_rooms_buyer  TransactionRoom[] @relation("BuyerRooms")
+  transaction_rooms_seller TransactionRoom[] @relation("SellerRooms")
+  wallet                   Wallet?
+  chat_messages            ChatMessage[]
+  disputes_initiated       Dispute[]
+  kyc                      KYC?
+  blacklist_records        Blacklist[]       @relation("BannedUser")
+
+  // Admin only
+  blacklist_actions Blacklist[] @relation("AdminBannedBy")
+}
+
+model TransactionRoom {
+  id              String     @id @default(uuid())
+  seller_id       String
+  buyer_id        String
+  seller          User       @relation("SellerRooms", fields: [seller_id], references: [id])
+  buyer           User       @relation("BuyerRooms", fields: [buyer_id], references: [id])
+  status          RoomStatus @default(CREATED)
+  amount          Float?
+  currency        String     @default("IDR")
+  description     String?
+  title           String
+  created_at      DateTime   @default(now())
+  updated_at      DateTime   @updatedAt
+  auto_hold_until DateTime?
+
+  agreement     TransactionAgreement?
+  chat_messages ChatMessage[]
+  disputes      Dispute[]
+}
+
+model TransactionAgreement {
+  id            String          @id @default(uuid())
+  room_id       String          @unique
+  room          TransactionRoom @relation(fields: [room_id], references: [id])
+  item_details  String
+  agreed_price  Float
+  fee_payer     FeePayer
+  deadline      DateTime?
+  seller_agreed Boolean         @default(false)
+  buyer_agreed  Boolean         @default(false)
+  agreed_at     DateTime?
+}
+
+model Wallet {
+  id             String @id @default(uuid())
+  user_id        String @unique
+  user           User   @relation(fields: [user_id], references: [id])
+  balance        Float  @default(0)
+  locked_balance Float  @default(0)
+  currency       String @default("IDR")
+}
+
+model ChatMessage {
+  id             String          @id @default(uuid())
+  room_id        String
+  room           TransactionRoom @relation(fields: [room_id], references: [id])
+  sender_id      String
+  sender         User            @relation(fields: [sender_id], references: [id])
+  content        String
+  type           MessageType     @default(TEXT)
+  is_red_flagged Boolean         @default(false)
+  sent_at        DateTime        @default(now())
+}
+
+model Dispute {
+  id            String          @id @default(uuid())
+  room_id       String
+  room          TransactionRoom @relation(fields: [room_id], references: [id])
+  initiator_id  String
+  initiator     User            @relation(fields: [initiator_id], references: [id])
+  reason        String
+  status        DisputeStatus   @default(OPEN)
+  admin_verdict String?
+  created_at    DateTime        @default(now())
+}
+
+model KYC {
+  id                String    @id @default(uuid())
+  user_id           String    @unique
+  user              User      @relation(fields: [user_id], references: [id])
+  real_name         String
+  id_card_number    String
+  id_card_photo_url String // Encrypted path
+  selfie_photo_url  String // Encrypted path
+  status            KycStatus @default(PENDING)
+  submitted_at      DateTime  @default(now())
+  verified_at       DateTime?
+  admin_note        String?
+}
+
+model Blacklist {
+  id                 String   @id @default(uuid())
+  user_id            String?
+  user               User?    @relation("BannedUser", fields: [user_id], references: [id])
+  identity_value     String // Email, Phone, or ID Card Number
+  reason             String
+  proof_url          String?
+  banned_at          DateTime @default(now())
+  banned_by_admin_id String
+  banned_by_admin    User     @relation("AdminBannedBy", fields: [banned_by_admin_id], references: [id])
+}
