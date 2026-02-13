@@ -39,7 +39,10 @@ const formSchema = z.object({
     role: z.enum(["buyer", "seller"]),
     counterpartyId: z.string().min(3, "Enter your partner's Unique Tag (e.g. User#123)"),
     title: z.string().min(5, "Give your transaction a clear title"),
-    amount: z.coerce.number().min(10000, "Minimum transaction is Rp 10.000"),
+    amount: z.string()
+        .refine((val) => !isNaN(Number(val)) && Number(val) >= 10000, {
+            message: "Minimum transaction is Rp 10.000",
+        }),
     description: z.string().optional(),
 });
 
@@ -53,7 +56,7 @@ export default function CreateTransactionPage() {
             role: "buyer",
             counterpartyId: "",
             title: "",
-            amount: 0,
+            amount: "",
             description: "",
         },
     });
@@ -61,7 +64,7 @@ export default function CreateTransactionPage() {
     async function onSubmit(values: z.infer<typeof formSchema>) {
         setIsLoading(true);
         // Simulate API call to create room
-        console.log("Creating room...", values);
+        console.log("Creating room...", { ...values, amount: Number(values.amount) });
 
         setTimeout(() => {
             setIsLoading(false);

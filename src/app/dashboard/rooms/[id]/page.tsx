@@ -9,8 +9,11 @@ import {
     AlertTriangle,
     FileText,
     CreditCard,
-    Upload
+    Upload,
+    ShieldAlert
 } from "lucide-react";
+
+import { checkMessageSafety } from "@/lib/security";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -41,9 +44,50 @@ export default function RoomPage({ params }: { params: { id: string } }) {
     const [messageInput, setMessageInput] = useState("");
     const [messages, setMessages] = useState(MOCK_MESSAGES);
 
+    // Security State
+    const [securityWarning, setSecurityWarning] = useState<string | null>(null);
+
+    // Mock security check function
+    // const checkMessageSafety = (message: string) => { // This function is now imported
+    //     const unsafeKeywords = ["password", "account", "login", "bank", "credit card", "ssn", "secret", "private key"];
+    //     const foundKeyword = unsafeKeywords.find(keyword => message.toLowerCase().includes(keyword));
+
+    //     if (foundKeyword) {
+    //         return { isSafe: false, warningMessage: `Potential sensitive information detected: "${foundKeyword}". Avoid sharing personal credentials.` };
+    //     }
+    //     return { isSafe: true, warningMessage: null };
+    // };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const content = e.target.value;
+        setMessageInput(content);
+
+        // Real-time check
+        if (content.length > 5) {
+            const check = checkMessageSafety(content);
+            if (!check.isSafe) {
+                setSecurityWarning(check.warningMessage || "Potential security risk detected.");
+            } else {
+                setSecurityWarning(null);
+            }
+        } else {
+            setSecurityWarning(null);
+        }
+    };
+
     const handleSendMessage = (e: React.FormEvent) => {
         e.preventDefault();
         if (!messageInput.trim()) return;
+
+        // Final security block before sending
+        const check = checkMessageSafety(messageInput);
+        if (!check.isSafe) {
+            // In a real app, you might block it or flag it.
+            // For simulation, we'll append a "Red Flag" system note or block it.
+            // Let's block it for "Hard Protection" demo.
+            alert("Action Blocked: " + check.warningMessage);
+            return;
+        }
 
         const newMsg = {
             id: messages.length + 1,
@@ -55,6 +99,7 @@ export default function RoomPage({ params }: { params: { id: string } }) {
 
         setMessages([...messages, newMsg]);
         setMessageInput("");
+        setSecurityWarning(null);
     };
 
     const handleAgreement_Buyer = () => {
@@ -239,8 +284,8 @@ export default function RoomPage({ params }: { params: { id: string } }) {
                                             </div>
                                         ) : (
                                             <div className={`max-w-[80%] rounded-lg p-3 text-sm ${msg.sender === 'You'
-                                                    ? 'bg-primary text-primary-foreground'
-                                                    : 'bg-secondary text-secondary-foreground'
+                                                ? 'bg-primary text-primary-foreground'
+                                                : 'bg-secondary text-secondary-foreground'
                                                 }`}>
                                                 <p>{msg.content}</p>
                                                 <span className="text-[10px] opacity-70 block text-right mt-1">{msg.timestamp}</span>
@@ -263,10 +308,16 @@ export default function RoomPage({ params }: { params: { id: string } }) {
                                 value={messageInput}
                                 onChange={(e) => setMessageInput(e.target.value)}
                             />
-                            <Button type="submit" size="icon">
+                            <Button type="submit" size="icon" disabled={!!securityWarning} className={securityWarning ? "opacity-50 cursor-not-allowed" : ""}>
                                 <Send className="h-4 w-4" />
                             </Button>
                         </form>
+                        {securityWarning && (
+                            <div className="mt-2 text-xs text-red-500 font-medium flex items-center gap-1 animate-pulse">
+                                <ShieldAlert className="h-3 w-3" />
+                                {securityWarning}
+                            </div>
+                        )}
                     </CardFooter>
                 </Card>
             </div>
